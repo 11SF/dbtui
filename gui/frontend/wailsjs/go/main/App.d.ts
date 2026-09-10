@@ -39,6 +39,8 @@ export function ListMongoDatabases():Promise<Array<string>>;
 
 export function ListRedisDatabases():Promise<Array<number>>;
 
+export function ListSQLDatabases():Promise<Array<string>>;
+
 export function ListSchemas():Promise<Array<string>>;
 
 export function ListTables(arg1:string):Promise<Array<db.TableRef>>;
@@ -50,5 +52,7 @@ export function RunQuery(arg1:string):Promise<db.QueryResult>;
 export function SaveConnection(arg1:string,arg2:config.Connection,arg3:string):Promise<void>;
 
 export function ScanKeys(arg1:number,arg2:string):Promise<Array<string>>;
+
+export function SwitchDatabase(arg1:string):Promise<void>;
 
 export function TTLSeconds(arg1:number,arg2:string):Promise<number>;

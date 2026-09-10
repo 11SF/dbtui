@@ -203,6 +203,23 @@ func (c *Client) DescribeTable(ctx context.Context, schema, table string) (*db.T
 		return nil, err
 	}
 
+	// A nil Go slice marshals to JSON `null`, not `[]` — a table with no
+	// foreign keys (the common case) would otherwise hand the frontend a
+	// null it has to know to guard against. Normalize once here rather
+	// than in every describe* helper.
+	if cols == nil {
+		cols = []db.ColumnInfo{}
+	}
+	if pks == nil {
+		pks = []string{}
+	}
+	if fks == nil {
+		fks = []db.ForeignKeyInfo{}
+	}
+	if idx == nil {
+		idx = []db.IndexInfo{}
+	}
+
 	return &db.TableDescription{
 		Columns:     cols,
 		PrimaryKeys: pks,

@@ -62,7 +62,7 @@ export function mountMongoView(root: HTMLElement): { el: HTMLElement; onEnter: (
 
   async function loadCollections(database: string): Promise<void> {
     try {
-      const colls = await api.listCollections(database);
+      const colls = (await api.listCollections(database)) ?? [];
       store.set((s) => (s.collectionsByDb[database] = colls));
     } catch (err) {
       showToast(errorMessage(err));
@@ -153,7 +153,7 @@ export function mountMongoView(root: HTMLElement): { el: HTMLElement; onEnter: (
     grid.clear();
     api
       .listMongoDatabases()
-      .then((dbs) => store.set((s) => (s.mongoDatabases = dbs)))
+      .then((dbs) => store.set((s) => (s.mongoDatabases = dbs ?? [])))
       .catch((err) => showToast(errorMessage(err)));
   };
 

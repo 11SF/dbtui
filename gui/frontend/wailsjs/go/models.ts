@@ -33,6 +33,7 @@ export namespace config {
 	    Tunnel?: TunnelConfig;
 	    Group: string;
 	    QueryTimeoutSec: number;
+	    ShowAllDatabases: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Connection(source);
@@ -50,6 +51,7 @@ export namespace config {
 	        this.Tunnel = this.convertValues(source["Tunnel"], TunnelConfig);
 	        this.Group = source["Group"];
 	        this.QueryTimeoutSec = source["QueryTimeoutSec"];
+	        this.ShowAllDatabases = source["ShowAllDatabases"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -339,6 +341,8 @@ export namespace main {
 	    type: string;
 	    category: string;
 	    status: string;
+	    dbName?: string;
+	    showAllDatabases?: boolean;
 	    tunnelLocalPort?: number;
 	    error?: string;
 	
@@ -352,6 +356,8 @@ export namespace main {
 	        this.type = source["type"];
 	        this.category = source["category"];
 	        this.status = source["status"];
+	        this.dbName = source["dbName"];
+	        this.showAllDatabases = source["showAllDatabases"];
 	        this.tunnelLocalPort = source["tunnelLocalPort"];
 	        this.error = source["error"];
 	    }

@@ -65,6 +65,14 @@ type Connection struct {
 	// context.WithTimeout. 0 means "use the default" (30s) — see
 	// QueryTimeout().
 	QueryTimeoutSec int `yaml:"query_timeout_sec,omitempty"`
+
+	// ShowAllDatabases, for SQL types (postgres/mysql) only, lets the
+	// browser list every database on the server rather than just DBName —
+	// DBName is still used as the database dialed first on connect.
+	// Meaningless for Redis (DBName is already the numeric index) and
+	// MongoDB (DBName is already optional and Find already browses across
+	// every database the credentials can see).
+	ShowAllDatabases bool `yaml:"show_all_databases,omitempty"`
 }
 
 // DefaultQueryTimeoutSec is used when QueryTimeoutSec is unset (0).

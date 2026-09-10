@@ -44,29 +44,34 @@ export class ResultGrid {
   }
 
   setResult(res: QueryResult): void {
-    if (res.Rows.length === 0) {
+    // A Go nil slice (zero rows, or — less commonly — zero columns) marshals
+    // to JSON `null`, not `[]`; guard every array field from the bridge.
+    const columns = res.Columns ?? [];
+    const rows = res.Rows ?? [];
+    if (rows.length === 0) {
       this.body.innerHTML = `<p class="result__empty">Query succeeded — 0 rows.</p>`;
     } else {
-      const head = res.Columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("");
-      const rows = res.Rows.map((row) => {
+      const head = columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("");
+      const rowsHtml = rows.map((row) => {
         const tsv = row.map(formatCell).join("\t");
         const cells = row.map((v) => `<td data-cell="${attr(formatCell(v))}">${escapeHtml(formatCell(v))}</td>`).join("");
         return `<tr data-row="${attr(tsv)}">${cells}</tr>`;
       }).join("");
-      this.body.innerHTML = `<table class="result__table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+      this.body.innerHTML = `<table class="result__table"><thead><tr>${head}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
     }
     const capNote = res.Capped ? " (capped at 1000)" : "";
-    this.footer.textContent = `${res.Rows.length} rows · ${formatDuration(res.Duration / 1e6)}${capNote} · click a cell to copy, double-click a row`;
+    this.footer.textContent = `${rows.length} rows · ${formatDuration(res.Duration / 1e6)}${capNote} · click a cell to copy, double-click a row`;
   }
 
   setDocResult(res: DocResult, limit = 100): void {
-    if (res.Documents.length === 0) {
+    const documents = res.Documents ?? [];
+    if (documents.length === 0) {
       this.body.innerHTML = `<p class="result__empty">Query succeeded — 0 documents.</p>`;
     } else {
-      this.body.innerHTML = `<pre class="result__docs">${escapeHtml(res.Documents.join(DOC_DIVIDER))}</pre>`;
+      this.body.innerHTML = `<pre class="result__docs">${escapeHtml(documents.join(DOC_DIVIDER))}</pre>`;
     }
-    const capNote = res.Documents.length >= limit ? ` (capped at ${limit})` : "";
-    this.footer.textContent = `${res.Documents.length} docs · ${formatDuration(res.Duration / 1e6)}${capNote}`;
+    const capNote = documents.length >= limit ? ` (capped at ${limit})` : "";
+    this.footer.textContent = `${documents.length} docs · ${formatDuration(res.Duration / 1e6)}${capNote}`;
   }
 
   setRaw(text: string): void {

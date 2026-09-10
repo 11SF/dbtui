@@ -14,7 +14,7 @@ export function mountLogsView(root: HTMLElement): { el: HTMLElement; onEnter: ()
 
   async function refresh(): Promise<void> {
     try {
-      const lines = await api.getLogs();
+      const lines = (await api.getLogs()) ?? [];
       const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
       body.textContent = lines.length ? lines.join("\n") : "(no log lines yet)";
       if (nearBottom) body.scrollTop = body.scrollHeight;

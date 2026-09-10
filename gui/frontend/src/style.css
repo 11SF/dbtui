@@ -360,6 +360,13 @@ kbd {
   padding-left: 26px;
   justify-content: space-between;
 }
+.tree__row--current {
+  color: var(--accent-strong);
+  justify-content: space-between;
+}
+.tree__row--current .tree__kind {
+  color: var(--accent);
+}
 .tree__caret {
   color: var(--text-dim);
   width: 10px;

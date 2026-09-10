@@ -70,6 +70,10 @@ export function ListRedisDatabases() {
   return window['go']['main']['App']['ListRedisDatabases']();
 }
 
+export function ListSQLDatabases() {
+  return window['go']['main']['App']['ListSQLDatabases']();
+}
+
 export function ListSchemas() {
   return window['go']['main']['App']['ListSchemas']();
 }
@@ -92,6 +96,10 @@ export function SaveConnection(arg1, arg2, arg3) {
 
 export function ScanKeys(arg1, arg2) {
   return window['go']['main']['App']['ScanKeys'](arg1, arg2);
+}
+
+export function SwitchDatabase(arg1) {
+  return window['go']['main']['App']['SwitchDatabase'](arg1);
 }
 
 export function TTLSeconds(arg1, arg2) {

@@ -51,6 +51,8 @@ export const api = {
   listTables: (schema: string) => call(App.ListTables(schema)),
   describeTable: (schema: string, table: string) => call(App.DescribeTable(schema, table)),
   runQuery: (sql: string) => call(App.RunQuery(sql)),
+  listSQLDatabases: () => call(App.ListSQLDatabases()),
+  switchDatabase: (name: string) => call(App.SwitchDatabase(name)),
 
   listRedisDatabases: () => call(App.ListRedisDatabases()),
   scanKeys: (dbIndex: number, pattern: string) => call(App.ScanKeys(dbIndex, pattern)),

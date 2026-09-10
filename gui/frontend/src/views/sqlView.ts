@@ -13,6 +13,8 @@ export function mountSqlView(root: HTMLElement): { el: HTMLElement; onEnter: () 
   el.className = "sql-view";
   el.innerHTML = `
     <div class="tree-pane">
+      <div class="tree-pane__header" data-db-header hidden>Databases</div>
+      <div class="tree" data-db-tree hidden></div>
       <div class="tree-pane__header">Schemas</div>
       <div class="tree" data-tree></div>
     </div>
@@ -27,9 +29,73 @@ export function mountSqlView(root: HTMLElement): { el: HTMLElement; onEnter: () 
   root.appendChild(el);
 
   const tree = el.querySelector<HTMLElement>("[data-tree]")!;
+  const dbHeader = el.querySelector<HTMLElement>("[data-db-header]")!;
+  const dbTree = el.querySelector<HTMLElement>("[data-db-tree]")!;
   const editor = el.querySelector<HTMLTextAreaElement>(".editor")!;
   const grid = new ResultGrid();
   el.querySelector(".result-slot")!.appendChild(grid.el);
+
+  // "Show all databases" (set per-connection in the connection form) adds
+  // this tier above the schema tree — Postgres/MySQL both require a fresh
+  // connection to change database (no in-session USE-equivalent in
+  // SQLStore), which api.switchDatabase handles server-side.
+  const renderDatabases = () => {
+    const show = store.state.status.showAllDatabases;
+    dbHeader.hidden = !show;
+    dbTree.hidden = !show;
+    if (!show) return;
+    const current = store.state.status.dbName;
+    dbTree.innerHTML = store.state.sqlDatabases
+      .map((name) => {
+        const isCurrent = name === current;
+        return `
+          <div class="tree__row${isCurrent ? " tree__row--current" : ""}" data-db="${attr(name)}" tabindex="0">
+            <span>${escapeHtml(name)}</span>
+            ${isCurrent ? `<span class="tree__kind">current</span>` : ""}
+          </div>`;
+      })
+      .join("");
+  };
+
+  async function loadDatabases(): Promise<void> {
+    try {
+      const dbs = (await api.listSQLDatabases()) ?? [];
+      store.set((s) => (s.sqlDatabases = dbs));
+    } catch (err) {
+      showToast(errorMessage(err));
+    }
+  }
+
+  async function switchDatabase(name: string): Promise<void> {
+    if (name === store.state.status.dbName) return;
+    try {
+      await api.switchDatabase(name);
+    } catch (err) {
+      showToast(errorMessage(err));
+      return;
+    }
+    // The "status" event from switchDatabase already updates
+    // store.state.status (including the new dbName); the schema tree
+    // itself belongs to the database just left behind, so reload it the
+    // same way onEnter does for a fresh connection.
+    store.set((s) => {
+      s.schemas = [];
+      s.tablesBySchema = {};
+      s.expandedSchemas = new Set();
+    });
+    grid.clear();
+    try {
+      const schemas = (await api.listSchemas()) ?? [];
+      store.set((s) => (s.schemas = schemas));
+    } catch (err) {
+      showToast(errorMessage(err));
+    }
+  }
+
+  dbTree.addEventListener("click", (e) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>("[data-db]");
+    if (row) switchDatabase(row.dataset.db!);
+  });
 
   const renderTree = () => {
     const { schemas, tablesBySchema, expandedSchemas } = store.state;
@@ -61,7 +127,7 @@ export function mountSqlView(root: HTMLElement): { el: HTMLElement; onEnter: () 
 
   async function loadTables(schema: string): Promise<void> {
     try {
-      const tables = await api.listTables(schema);
+      const tables = (await api.listTables(schema)) ?? [];
       store.set((s) => (s.tablesBySchema[schema] = tables));
     } catch (err) {
       showToast(errorMessage(err));
@@ -133,6 +199,7 @@ export function mountSqlView(root: HTMLElement): { el: HTMLElement; onEnter: () 
   });
 
   store.subscribe(renderTree);
+  store.subscribe(renderDatabases);
   store.subscribe(() => {
     if (store.state.pendingLoadQuery !== null && store.state.status.category === "sql") {
       editor.value = store.state.pendingLoadQuery;
@@ -145,12 +212,14 @@ export function mountSqlView(root: HTMLElement): { el: HTMLElement; onEnter: () 
       s.schemas = [];
       s.tablesBySchema = {};
       s.expandedSchemas = new Set();
+      s.sqlDatabases = [];
     });
     grid.clear();
     api
       .listSchemas()
-      .then((schemas) => store.set((s) => (s.schemas = schemas)))
+      .then((schemas) => store.set((s) => (s.schemas = schemas ?? [])))
       .catch((err) => showToast(errorMessage(err)));
+    if (store.state.status.showAllDatabases) loadDatabases();
   };
 
   return { el, onEnter };

@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"dbtui/internal/config"
 	"dbtui/internal/db"
 	"dbtui/internal/history"
+	"dbtui/internal/secrets"
 )
 
 func (a *App) recordHistory(e *history.HistoryEntry) {
@@ -76,6 +78,92 @@ func (a *App) DescribeTable(schema, table string) (*db.TableDescription, error) 
 		return nil, err
 	}
 	return store.DescribeTable(context.Background(), schema, table)
+}
+
+// ListSQLDatabases lists every database on the active SQL server (not just
+// the one currently connected to) — the backing call for a connection's
+// "show all databases" mode. Both Postgres and MySQL expose this via a
+// plain SELECT that the existing SQLStore.Query already runs, so no new
+// capability-interface method is needed.
+func (a *App) ListSQLDatabases() ([]string, error) {
+	store, ac, err := a.requireSQL()
+	if err != nil {
+		return nil, err
+	}
+
+	var sql string
+	switch ac.Conn.Type {
+	case config.Postgres:
+		sql = `SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname`
+	case config.MySQL:
+		sql = `SELECT schema_name FROM information_schema.schemata ORDER BY schema_name`
+	default:
+		return nil, fmt.Errorf("gui: listing databases is not supported for %s", ac.Conn.Type)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), ac.Conn.QueryTimeout())
+	defer cancel()
+	res, err := store.Query(ctx, sql)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(res.Rows))
+	for _, row := range res.Rows {
+		if len(row) > 0 {
+			names = append(names, fmt.Sprintf("%v", row[0]))
+		}
+	}
+	return names, nil
+}
+
+// SwitchDatabase reconnects the active SQL connection to a different
+// database on the same server (Postgres and MySQL both require a fresh
+// connection to change database — there's no in-session USE equivalent
+// in the SQLStore interface), reusing the existing tunnel if one is
+// active rather than restarting it. Leaves the prior connection active if
+// anything fails partway.
+func (a *App) SwitchDatabase(name string) error {
+	ac := a.getActive()
+	if ac == nil || ac.Status != StatusConnected {
+		return fmt.Errorf("gui: no active connection to switch database on")
+	}
+	if _, ok := ac.Client.(db.SQLStore); !ok {
+		return fmt.Errorf("gui: active connection does not support switching databases")
+	}
+
+	password, err := secretsGetPassword(ac.Conn.Name)
+	if err != nil && err != secrets.ErrNotFound {
+		return err
+	}
+
+	newConn := ac.Conn
+	newConn.DBName = name
+	dialConn := newConn
+	if ac.TunnelProc != nil {
+		dialConn.Host = "localhost"
+		dialConn.Port = ac.TunnelProc.LocalPort
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), dialConn.QueryTimeout())
+	defer cancel()
+	client, err := db.NewClient(ctx, dialConn, password)
+	if err != nil {
+		return err
+	}
+
+	old := ac.Client
+	a.setActive(&ActiveConnection{
+		Conn:        newConn,
+		Status:      StatusConnected,
+		TunnelProc:  ac.TunnelProc,
+		Client:      client,
+		ConnectedAt: time.Now(),
+	})
+	if old != nil {
+		_ = old.Close()
+	}
+	return nil
 }
 
 // RunQuery runs sql against the active SQL connection, recording a history

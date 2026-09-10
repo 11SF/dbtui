@@ -51,7 +51,7 @@ export function mountSidebar(root: HTMLElement): void {
       if (!ok) return;
       try {
         await api.deleteConnection(name);
-        const conns = await api.listConnections();
+        const conns = (await api.listConnections()) ?? [];
         store.set((s) => (s.connections = conns));
       } catch (err) {
         showToast(errorMessage(err));

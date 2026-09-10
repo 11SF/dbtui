@@ -48,3 +48,27 @@ func TestRunKVCommand_DestructiveUnconfirmed_NeedsConfirm(t *testing.T) {
 		t.Fatalf("want no result when confirmation is needed, got %v", res.Result)
 	}
 }
+
+func TestListSQLDatabases_NoActiveConnection_ReturnsError(t *testing.T) {
+	a, _ := newTestApp(t)
+	if _, err := a.ListSQLDatabases(); err == nil {
+		t.Fatal("want error with no active connection, got nil")
+	}
+}
+
+func TestSwitchDatabase_NoActiveConnection_ReturnsError(t *testing.T) {
+	a, _ := newTestApp(t)
+	if err := a.SwitchDatabase("otherdb"); err == nil {
+		t.Fatal("want error with no active connection, got nil")
+	}
+}
+
+func TestSwitchDatabase_NotConnected_ReturnsError(t *testing.T) {
+	a, _ := newTestApp(t)
+	// setActive with StatusError (not StatusConnected) — SwitchDatabase
+	// must refuse rather than trying to dial through a half-set-up state.
+	a.setActive(&ActiveConnection{Status: StatusError})
+	if err := a.SwitchDatabase("otherdb"); err == nil {
+		t.Fatal("want error when active connection is not StatusConnected, got nil")
+	}
+}

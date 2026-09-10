@@ -70,7 +70,7 @@ export function mountKvView(root: HTMLElement): { el: HTMLElement; onEnter: () =
   async function refreshKeys(): Promise<void> {
     const dbIndex = store.state.redisDbIndex;
     try {
-      const keys = await api.scanKeys(dbIndex, patternInput.value.trim() || "*");
+      const keys = (await api.scanKeys(dbIndex, patternInput.value.trim() || "*")) ?? [];
       store.set((s) => (s.redisKeys = keys));
       keys.forEach(async (k) => {
         try {

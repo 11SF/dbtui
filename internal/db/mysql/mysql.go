@@ -200,6 +200,22 @@ func (c *Client) DescribeTable(ctx context.Context, schema, table string) (*db.T
 		return nil, err
 	}
 
+	// A nil Go slice marshals to JSON `null`, not `[]` — normalize once
+	// here rather than in every describe* helper (see the same fix in
+	// the postgres driver for the full rationale).
+	if cols == nil {
+		cols = []db.ColumnInfo{}
+	}
+	if pks == nil {
+		pks = []string{}
+	}
+	if fks == nil {
+		fks = []db.ForeignKeyInfo{}
+	}
+	if idx == nil {
+		idx = []db.IndexInfo{}
+	}
+
 	return &db.TableDescription{
 		Columns:     cols,
 		PrimaryKeys: pks,

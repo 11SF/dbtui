@@ -50,12 +50,14 @@ type ActiveConnection struct {
 // the frontend, both as the Connect/GetStatus return value and as the
 // "status" runtime event emitted at every transition during Connect.
 type StatusPayload struct {
-	Name            string `json:"name"`
-	Type            string `json:"type"`
-	Category        string `json:"category"`
-	Status          string `json:"status"`
-	TunnelLocalPort int    `json:"tunnelLocalPort,omitempty"`
-	Error           string `json:"error,omitempty"`
+	Name             string `json:"name"`
+	Type             string `json:"type"`
+	Category         string `json:"category"`
+	Status           string `json:"status"`
+	DBName           string `json:"dbName,omitempty"`
+	ShowAllDatabases bool   `json:"showAllDatabases,omitempty"`
+	TunnelLocalPort  int    `json:"tunnelLocalPort,omitempty"`
+	Error            string `json:"error,omitempty"`
 }
 
 func statusPayload(ac *ActiveConnection) StatusPayload {
@@ -63,10 +65,12 @@ func statusPayload(ac *ActiveConnection) StatusPayload {
 		return StatusPayload{Status: string(StatusDisconnected)}
 	}
 	p := StatusPayload{
-		Name:     ac.Conn.Name,
-		Type:     string(ac.Conn.Type),
-		Category: string(ac.Conn.Type.Category()),
-		Status:   string(ac.Status),
+		Name:             ac.Conn.Name,
+		Type:             string(ac.Conn.Type),
+		Category:         string(ac.Conn.Type.Category()),
+		Status:           string(ac.Status),
+		DBName:           ac.Conn.DBName,
+		ShowAllDatabases: ac.Conn.ShowAllDatabases,
 	}
 	if ac.TunnelProc != nil {
 		p.TunnelLocalPort = ac.TunnelProc.LocalPort

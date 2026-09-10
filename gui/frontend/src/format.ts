@@ -82,36 +82,44 @@ export function statusLabel(status: string): string {
 /** Renders a TableDescription as plain text for the describe dialog —
  * mirrors the old TUI's FormatTableDescription. */
 export function formatTableDescription(desc: import("./api").TableDescription): string {
+  // A Go nil slice (a table with zero foreign keys, say) marshals to JSON
+  // `null`, not `[]` — every array field coming from the Go bridge needs
+  // this guard, not just the "obviously optional" ones.
+  const columns = desc.Columns ?? [];
+  const primaryKeys = desc.PrimaryKeys ?? [];
+  const foreignKeys = desc.ForeignKeys ?? [];
+  const indexes = desc.Indexes ?? [];
+
   const lines: string[] = ["Columns:"];
-  for (const c of desc.Columns) {
+  for (const c of columns) {
     const nullable = c.Nullable ? "NULL" : "NOT NULL";
     let line = `  ${c.Name} ${c.DataType} ${nullable}`;
     if (c.Default) line += ` DEFAULT ${c.Default}`;
     lines.push(line);
   }
-  if (desc.PrimaryKeys.length) {
-    lines.push("", `Primary Key: ${desc.PrimaryKeys.join(", ")}`);
+  if (primaryKeys.length) {
+    lines.push("", `Primary Key: ${primaryKeys.join(", ")}`);
   }
-  if (desc.ForeignKeys.length) {
+  if (foreignKeys.length) {
     lines.push("", "Foreign Keys:");
-    for (const fk of desc.ForeignKeys) {
+    for (const fk of foreignKeys) {
       lines.push(`  ${fk.Column} -> ${fk.RefSchema}.${fk.RefTable}.${fk.RefColumn}`);
     }
   }
-  if (desc.Indexes.length) {
+  if (indexes.length) {
     lines.push("", "Indexes:");
-    for (const idx of desc.Indexes) {
-      lines.push(`  ${idx.Name}${idx.Unique ? " UNIQUE" : ""} (${idx.Columns.join(", ")})`);
+    for (const idx of indexes) {
+      lines.push(`  ${idx.Name}${idx.Unique ? " UNIQUE" : ""} (${(idx.Columns ?? []).join(", ")})`);
     }
   }
   return lines.join("\n");
 }
 
 /** Renders MongoDB IndexInfo[] as plain text — reuses the same dialog shell. */
-export function formatIndexInfo(indexes: import("./api").IndexInfo[]): string {
+export function formatIndexInfo(indexes: import("./api").IndexInfo[] | null | undefined): string {
   const lines: string[] = ["Indexes:"];
-  for (const idx of indexes) {
-    lines.push(`  ${idx.Name}${idx.Unique ? " UNIQUE" : ""} (${idx.Columns.join(", ")})`);
+  for (const idx of indexes ?? []) {
+    lines.push(`  ${idx.Name}${idx.Unique ? " UNIQUE" : ""} (${(idx.Columns ?? []).join(", ")})`);
   }
   return lines.join("\n");
 }

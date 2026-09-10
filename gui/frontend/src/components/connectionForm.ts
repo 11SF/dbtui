@@ -16,6 +16,11 @@ const FIELD_SETS: Record<FieldsFor, string[]> = {
 
 const DEFAULT_PORT: Record<FieldsFor, number> = { postgres: 5432, mysql: 3306, redis: 6379, mongodb: 27017 };
 
+// "Show all databases" only makes sense for postgres/mysql: Redis's DBName
+// is already the numeric index, and Mongo's Find already browses across
+// every database the credentials can see without a separate mode.
+const SHOW_ALL_DATABASES_TYPES: readonly string[] = ["postgres", "mysql"];
+
 export function visibleFields(t: string): string[] {
   return FIELD_SETS[t as FieldsFor] ?? FIELD_SETS.postgres;
 }
@@ -63,6 +68,7 @@ function blankConnection(): Connection {
     Tunnel: undefined,
     Group: "",
     QueryTimeoutSec: 0,
+    ShowAllDatabases: false,
   } as Connection;
 }
 
@@ -100,6 +106,11 @@ function formHtml(c: Connection, mode: "new" | "edit"): string {
       <label class="field">
         <span>Group</span>
         <input name="Group" value="${attr(c.Group)}" placeholder="optional, e.g. staging" />
+      </label>
+
+      <label class="field field--checkbox" data-show-all-db ${SHOW_ALL_DATABASES_TYPES.includes(c.Type) ? "" : "hidden"}>
+        <input type="checkbox" name="ShowAllDatabases" ${c.ShowAllDatabases ? "checked" : ""} />
+        <span>Show all databases (browse every database on the server, not just DBName)</span>
       </label>
 
       <label class="field field--checkbox">
@@ -142,6 +153,8 @@ function wireForm(overlay: HTMLElement, mode: "new" | "edit", original: Connecti
   const fieldsBox = form.querySelector<HTMLElement>("[data-fields]")!;
   const tunnelCheckbox = form.elements.namedItem("useTunnel") as HTMLInputElement;
   const tunnelFields = form.querySelector<HTMLElement>("[data-tunnel-fields]")!;
+  const showAllDbRow = form.querySelector<HTMLElement>("[data-show-all-db]")!;
+  const showAllDbCheckbox = form.elements.namedItem("ShowAllDatabases") as HTMLInputElement;
   const errorEl = form.querySelector<HTMLElement>(".form-error")!;
 
   typeSelect.addEventListener("change", () => {
@@ -155,6 +168,9 @@ function wireForm(overlay: HTMLElement, mode: "new" | "edit", original: Connecti
     if (portInput && !portInput.value) {
       portInput.value = String(DEFAULT_PORT[typeSelect.value as FieldsFor] ?? "");
     }
+    const showAllDbApplies = SHOW_ALL_DATABASES_TYPES.includes(typeSelect.value);
+    showAllDbRow.hidden = !showAllDbApplies;
+    if (!showAllDbApplies) showAllDbCheckbox.checked = false;
   });
 
   tunnelCheckbox.addEventListener("change", () => {
@@ -185,6 +201,7 @@ function wireForm(overlay: HTMLElement, mode: "new" | "edit", original: Connecti
       AuthSource: str("AuthSource"),
       Group: str("Group"),
       QueryTimeoutSec: 0,
+      ShowAllDatabases: SHOW_ALL_DATABASES_TYPES.includes(typeSelect.value) && showAllDbCheckbox.checked,
     } as Connection;
 
     if (tunnelCheckbox.checked) {
@@ -206,7 +223,7 @@ function wireForm(overlay: HTMLElement, mode: "new" | "edit", original: Connecti
 
     try {
       await api.saveConnection(mode === "edit" ? original.Name : "", conn, str("Password"));
-      const conns = await api.listConnections();
+      const conns = (await api.listConnections()) ?? [];
       store.set((s) => {
         s.connections = conns;
         s.connectionFormOpen = null;

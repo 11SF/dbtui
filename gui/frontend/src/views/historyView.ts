@@ -43,7 +43,7 @@ export function mountHistoryView(root: HTMLElement): { el: HTMLElement; onEnter:
 
   async function load(): Promise<void> {
     try {
-      entries = await api.getHistory(200, filterInput.value.trim());
+      entries = (await api.getHistory(200, filterInput.value.trim())) ?? [];
       render();
     } catch (err) {
       showToast(errorMessage(err));

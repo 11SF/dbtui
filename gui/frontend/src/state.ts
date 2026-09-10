@@ -11,6 +11,9 @@ export interface AppState {
   schemas: string[];
   tablesBySchema: Record<string, import("./api").TableRef[]>;
   expandedSchemas: Set<string>;
+  /** Only populated (and only shown) when status.showAllDatabases is set
+   * on the active connection — see sqlView.ts's "Databases" tier. */
+  sqlDatabases: string[];
   lastQueryResult: QueryResult | null;
   lastQueryError: string | null;
   lastQueryMeta: { ms: number; rows: number; capped: boolean } | null;
@@ -54,6 +57,7 @@ class Store {
     schemas: [],
     tablesBySchema: {},
     expandedSchemas: new Set(),
+    sqlDatabases: [],
     lastQueryResult: null,
     lastQueryError: null,
     lastQueryMeta: null,

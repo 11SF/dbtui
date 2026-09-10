@@ -216,7 +216,7 @@ async function boot(): Promise<void> {
   try {
     const [conns, status] = await Promise.all([api.listConnections(), api.getStatus()]);
     store.set((s) => {
-      s.connections = conns;
+      s.connections = conns ?? [];
       s.status = status;
     });
   } catch (err) {
