@@ -48,6 +48,19 @@
   box-sizing: border-box;
 }
 
+/* The `hidden` attribute/property is how every dialog, the command
+   palette, and the connection form's own field toggling all signal
+   visibility (`el.hidden = true/false` throughout components/ and
+   views/). The browser's default `[hidden] { display: none }` UA rule
+   has low specificity, so any author rule that sets `display` on the
+   same element (e.g. `.overlay { display: flex }`, `.field { display:
+   flex }`) silently wins and the element stays visible regardless of
+   `hidden` — exactly the bug where every overlay rendered stuck open on
+   launch. This reclaims `hidden` as authoritative everywhere. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
