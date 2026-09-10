@@ -8,6 +8,12 @@ import { store, showToast } from "./state";
 import { api, onStatus, errorMessage } from "./api";
 import type { ViewName } from "./state";
 
+// Devtools are off in a production build, so an uncaught error otherwise
+// has nowhere to go. Logging it is the least this can do until something
+// actually surfaces it in the UI.
+window.addEventListener("error", (e) => console.error("uncaught error", e.error ?? e.message));
+window.addEventListener("unhandledrejection", (e) => console.error("unhandled rejection", e.reason));
+
 import { mountStatusStrip } from "./components/statusStrip";
 import { mountSidebar } from "./components/sidebar";
 import { mountConnectionForm } from "./components/connectionForm";
@@ -47,25 +53,54 @@ const sidebarMount = shell.querySelector<HTMLElement>("[data-sidebar]")!;
 const tabsBar = shell.querySelector<HTMLElement>("[data-tabs]")!;
 const contentMount = shell.querySelector<HTMLElement>("[data-content]")!;
 
-mountStatusStrip(statusbarMount);
-mountSidebar(sidebarMount);
-mountConnectionForm(appRoot);
-mountCommandPalette(appRoot);
-mountToast(appRoot);
-mountConfirmDialog(appRoot);
-mountInfoDialog(appRoot);
+// Each mount is independent UI; a throw in any one of them must not take
+// the rest of the app down with it — without this, a single bad mount
+// halts this whole script, leaving the shell painted but *no* listener
+// anywhere ever attached (not even the tab bar or keyboard shortcuts
+// below), which looks exactly like a frozen, unclickable window.
+function mountSafely(name: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    console.error(`mount failed: ${name}`, err);
+  }
+}
+
+mountSafely("statusStrip", () => mountStatusStrip(statusbarMount));
+mountSafely("sidebar", () => mountSidebar(sidebarMount));
+mountSafely("connectionForm", () => mountConnectionForm(appRoot));
+mountSafely("commandPalette", () => mountCommandPalette(appRoot));
+mountSafely("toast", () => mountToast(appRoot));
+mountSafely("confirmDialog", () => mountConfirmDialog(appRoot));
+mountSafely("infoDialog", () => mountInfoDialog(appRoot));
 
 // Every content view is built once and swapped into `contentMount` as
 // needed, rather than torn down/rebuilt — this keeps editor/input state
 // (and, for logsView, its poll timer) predictable across re-renders.
-const empty = mountEmptyState(document.createElement("div"));
-const sql = mountSqlView(document.createElement("div"));
-const kv = mountKvView(document.createElement("div"));
-const mongo = mountMongoView(document.createElement("div"));
-const historyV = mountHistoryView(document.createElement("div"));
-const logsV = mountLogsView(document.createElement("div"));
+function mountViewSafely(
+  name: string,
+  fn: (el: HTMLElement) => MountedView,
+): MountedView {
+  try {
+    return fn(document.createElement("div"));
+  } catch (err) {
+    console.error(`view mount failed: ${name}`, err);
+    const fallback = document.createElement("div");
+    fallback.className = "view-error";
+    fallback.textContent = `This view failed to load (${name}). See the logs view or devtools console for details.`;
+    return { el: fallback };
+  }
+}
 
 type MountedView = { el: HTMLElement; onEnter?: () => void; onLeave?: () => void };
+
+const empty = mountViewSafely("empty", mountEmptyState);
+const sql = mountViewSafely("sql", mountSqlView);
+const kv = mountViewSafely("kv", mountKvView);
+const mongo = mountViewSafely("mongo", mountMongoView);
+const historyV = mountViewSafely("history", mountHistoryView);
+const logsV = mountViewSafely("logs", mountLogsView);
+
 let currentKey = "";
 let current: MountedView | null = null;
 
@@ -147,10 +182,26 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-onStatus((status) => {
-  store.set((s) => (s.status = status));
-  if (status.status === "error" && status.error) showToast(status.error);
-});
+// Base interactivity (tab clicks, keyboard shortcuts, the initial render)
+// is wired above and does not depend on the Wails native bridge being
+// ready yet, so it works even if what follows fails. `EventsOn` below is
+// the one call in this app that touches `window.runtime` directly — on a
+// production build (as opposed to `wails dev`) that bridge object is
+// usually injected before page scripts run, but isn't guaranteed to be by
+// the time this synchronous top-level code executes, so guard it and
+// retry once on the next tick rather than letting an early throw here
+// silently drop live status updates for the rest of the session.
+function subscribeStatus(retriesLeft = 3): void {
+  try {
+    onStatus((status) => {
+      store.set((s) => (s.status = status));
+      if (status.status === "error" && status.error) showToast(status.error);
+    });
+  } catch (err) {
+    console.error("onStatus subscription failed", err);
+    if (retriesLeft > 0) setTimeout(() => subscribeStatus(retriesLeft - 1), 200);
+  }
+}
 
 async function boot(): Promise<void> {
   try {
@@ -164,5 +215,6 @@ async function boot(): Promise<void> {
   }
 }
 
-boot();
 renderContent();
+boot();
+subscribeStatus();
