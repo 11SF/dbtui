@@ -27,6 +27,13 @@ type ResultView struct {
 	// page can show it (typically in its footer). Optional — nil means
 	// yank/export happen silently.
 	OnStatus func(string)
+
+	// OnLeave, if set, is called on Tab so the embedding page (browser.go's
+	// tree, query.go's input) can move focus back to itself — ResultView is
+	// otherwise a dead end once focused, since Esc is reserved globally for
+	// page-level back navigation (app.globalInputCapture), not pane-local
+	// focus switching.
+	OnLeave func()
 }
 
 func NewResultView() *ResultView {
@@ -36,6 +43,12 @@ func NewResultView() *ResultView {
 }
 
 func (r *ResultView) handleKey(event *tcell.EventKey) *tcell.EventKey {
+	if event.Key() == tcell.KeyTab {
+		if r.OnLeave != nil {
+			r.OnLeave()
+		}
+		return nil
+	}
 	switch event.Rune() {
 	case 'y':
 		r.yankCell()
@@ -139,6 +152,9 @@ func (r *ResultView) SetResult(res *db.QueryResult) {
 	r.lastResult = res
 	r.lastDocs = nil
 	r.Table.Clear()
+	// Selectable rows+columns so a cursor is visible and y/Y yank the cell/
+	// row actually under it (GetSelection() is meaningless without this).
+	r.Table.SetSelectable(true, true)
 	if res == nil {
 		return
 	}
@@ -179,6 +195,7 @@ func (r *ResultView) SetDocResult(res *db.DocResult) {
 	r.lastDocs = res
 	r.lastResult = nil
 	r.Table.Clear()
+	r.Table.SetSelectable(false, false)
 	cell := tview.NewTableCell(FormatDocResult(res)).SetSelectable(false)
 	r.Table.SetCell(0, 0, cell)
 }
@@ -190,6 +207,7 @@ func (r *ResultView) SetRaw(text string) {
 	r.lastResult = nil
 	r.lastDocs = nil
 	r.Table.Clear()
+	r.Table.SetSelectable(false, false)
 	r.Table.SetCell(0, 0, tview.NewTableCell(text).SetSelectable(false))
 }
 

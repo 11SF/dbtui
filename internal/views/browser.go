@@ -78,6 +78,7 @@ func newSQLBrowser(a *app.App, client db.SQLStore) tview.Primitive {
 	result := NewResultView()
 	footer := tview.NewTextView().SetDynamicColors(true)
 	result.OnStatus = func(msg string) { footer.SetText(msg) }
+	result.OnLeave = func() { a.TView.SetFocus(tree) }
 
 	ctx := context.Background()
 	schemas, err := client.ListSchemas(ctx)
@@ -122,10 +123,15 @@ func newSQLBrowser(a *app.App, client db.SQLStore) tview.Primitive {
 			}
 			result.SetResult(res)
 			footer.SetText(ResultFooter(len(res.Rows), res.Duration.Milliseconds(), res.Capped))
+			a.TView.SetFocus(result.Table)
 		}
 	})
 
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyTab {
+			a.TView.SetFocus(result.Table)
+			return nil
+		}
 		if event.Rune() == 'd' {
 			node := tree.GetCurrentNode()
 			if node == nil {
@@ -140,7 +146,7 @@ func newSQLBrowser(a *app.App, client db.SQLStore) tview.Primitive {
 				footer.SetText(fmt.Sprintf("[red]%v[white]", err))
 				return nil
 			}
-			showDescribeModal(a, tr.Name, FormatTableDescription(desc))
+			showDescribeModal(a, tr.Name, FormatTableDescription(desc), tree)
 			return nil
 		}
 		return event
@@ -189,7 +195,7 @@ func newKVBrowser(a *app.App, client db.KVStore) tview.Primitive {
 			footer.SetText(fmt.Sprintf("[red]%v[white]", err))
 			return
 		}
-		showDescribeModal(a, keys[row], RenderKVValue(v))
+		showDescribeModal(a, keys[row], RenderKVValue(v), table)
 	})
 
 	body := tview.NewFlex().SetDirection(tview.FlexRow).
@@ -210,6 +216,7 @@ func newDocumentBrowser(a *app.App, client db.DocumentStore) tview.Primitive {
 	result := NewResultView()
 	footer := tview.NewTextView().SetDynamicColors(true)
 	result.OnStatus = func(msg string) { footer.SetText(msg) }
+	result.OnLeave = func() { a.TView.SetFocus(tree) }
 
 	ctx := context.Background()
 	dbs, err := client.ListDatabases(ctx)
@@ -253,10 +260,15 @@ func newDocumentBrowser(a *app.App, client db.DocumentStore) tview.Primitive {
 			}
 			result.SetDocResult(res)
 			footer.SetText(DocResultFooter(len(res.Documents), res.Duration.Milliseconds(), 100))
+			a.TView.SetFocus(result.Table)
 		}
 	})
 
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyTab {
+			a.TView.SetFocus(result.Table)
+			return nil
+		}
 		if event.Rune() == 'd' {
 			node := tree.GetCurrentNode()
 			if node == nil {
@@ -271,7 +283,7 @@ func newDocumentBrowser(a *app.App, client db.DocumentStore) tview.Primitive {
 				footer.SetText(fmt.Sprintf("[red]%v[white]", err))
 				return nil
 			}
-			showDescribeModal(a, ref.collection, FormatIndexInfo(indexes))
+			showDescribeModal(a, ref.collection, FormatIndexInfo(indexes), tree)
 			return nil
 		}
 		return event
@@ -287,13 +299,18 @@ func newDocumentBrowser(a *app.App, client db.DocumentStore) tview.Primitive {
 
 // showDescribeModal displays text (a formatted TableDescription/IndexInfo)
 // in a dismissable modal, reusing one shared "describe" page (spec §5.5:
-// "d on a table node → open the describe.go modal").
-func showDescribeModal(a *app.App, title, text string) {
+// "d on a table node → open the describe.go modal"). returnFocus is given
+// focus back once the modal closes — without it, closing the modal leaves
+// focus nowhere, the same dead-end the browser's tree/result panes had.
+func showDescribeModal(a *app.App, title, text string, returnFocus tview.Primitive) {
 	modal := tview.NewModal().
 		SetText(title + "\n\n" + text).
 		AddButtons([]string{"Close"})
 	modal.SetDoneFunc(func(int, string) {
 		a.Pages.RemovePage("describe")
+		if returnFocus != nil {
+			a.TView.SetFocus(returnFocus)
+		}
 	})
 	a.Pages.AddPage("describe", modal, true, true)
 }
