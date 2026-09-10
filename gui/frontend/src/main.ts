@@ -153,9 +153,18 @@ function renderContent(): void {
   current?.onLeave?.();
   contentMount.innerHTML = "";
   current = viewFor(key);
+  // currentKey must be updated BEFORE onEnter runs, not after: every
+  // view's onEnter calls store.set() to reset its tree/result state
+  // before loading fresh data, and store.set() synchronously re-invokes
+  // every subscriber — including this function. If currentKey were still
+  // stale at that point, the reentrant call would see the same mismatch,
+  // switch "again", and call onEnter "again", forever — infinite
+  // recursion that overflows the stack before the view's actual data
+  // call (listSchemas/listMongoDatabases/etc.) is ever reached. Setting
+  // it first makes the reentrant call a no-op, as intended.
+  currentKey = key;
   contentMount.appendChild(current.el);
   current.onEnter?.();
-  currentKey = key;
 }
 
 tabsBar.addEventListener("click", (e) => {
