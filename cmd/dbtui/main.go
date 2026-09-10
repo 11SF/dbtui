@@ -94,6 +94,7 @@ func run() error {
 	}
 
 	connList.OnConnected = func(string) { registerLiveViews() }
+	connList.OnStatusChange = func() { a.StatusBar.Render(a.GetActive()) }
 
 	a.OnCommand = func(cmd string) {
 		switch cmd {
