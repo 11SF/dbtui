@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -69,6 +70,11 @@ func TestFormatValue(t *testing.T) {
 		{"bytes", []byte("hello"), "hello"},
 		{"time", ts, ts.Format(time.RFC3339)},
 		{"bool", true, "true"},
+		{
+			"pgx uuid ([16]byte)",
+			[16]byte{0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00},
+			"550e8400-e29b-41d4-a716-446655440000",
+		},
 	}
 
 	for _, tt := range tests {
@@ -78,6 +84,20 @@ func TestFormatValue(t *testing.T) {
 				t.Fatalf("FormatValue(%#v) = %#v, want %#v", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestNullValue_MarshalsAsJSONNull guards the wire format the GUI's
+// formatCell (and cell editing) depend on: a SQL NULL must reach the
+// frontend as JSON `null`, not the "{}" an empty struct marshals to by
+// default.
+func TestNullValue_MarshalsAsJSONNull(t *testing.T) {
+	b, err := json.Marshal(FormatValue(nil))
+	if err != nil {
+		t.Fatalf("json.Marshal(FormatValue(nil)) error = %v", err)
+	}
+	if string(b) != "null" {
+		t.Fatalf("json.Marshal(FormatValue(nil)) = %s, want null", b)
 	}
 }
 
